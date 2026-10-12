@@ -1,4 +1,5 @@
 import { FINISHES, TYPEFACES, QUALITY_PRESETS } from '../config.js';
+import { SOUND_PROFILES, BELL_TYPES, ROOMS } from '../audio/soundProfiles.js';
 import { Emitter } from '../core/Emitter.js';
 import { VIEW_LABELS } from '../fx/CameraRig.js';
 
@@ -22,14 +23,16 @@ export class UI extends Emitter {
       if (name === 'close') { btn.closest('.sheet').hidden = true; this.emit('panel', null); return; }
       if (name === 'settings') return this.togglePanel('settings');
       if (name === 'gallery') return this.togglePanel('gallery');
+      if (name === 'feed') return this.togglePanel('feed');
       this.emit('action', name, btn);
     });
     // UI 上の操作が 3D に伝わらないように
-    for (const el of document.querySelectorAll('.toolbar, .mobilebar, .sheet, .viewer, .intro')) {
+    for (const el of document.querySelectorAll('.toolbar, .mobilebar, .sheet, .viewer, .intro, .feedbar')) {
       el.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
     $('viewerClose').addEventListener('click', () => { $('viewer').hidden = true; });
     this._buildSettings();
+    this._buildFeed();
     this.syncToggles();
   }
 
@@ -89,6 +92,7 @@ export class UI extends Emitter {
     for (const p of document.querySelectorAll('.sheet')) p.hidden = true;
     el.hidden = !open;
     if (open && id === 'gallery') this._renderGallery();
+    if (open && id === 'feed' && !matchMedia('(pointer: coarse)').matches) $('feedText').focus({ preventScroll: true });
     this.emit('panel', open ? id : null);
   }
   closePanels() {
@@ -148,7 +152,59 @@ export class UI extends Emitter {
     body.appendChild(vol);
     check('ambience', '雨音と柱時計を流す');
 
+    radio('soundProfile', '打鍵音', Object.entries(SOUND_PROFILES).map(([k, v]) => [k, v.name]), '選ぶとその場で試し打ちします。');
+    radio('bellType', 'ベルの音', Object.entries(BELL_TYPES).map(([k, v]) => [k, v.name]));
+    radio('room', '部屋の響き', Object.entries(ROOMS).map(([k, v]) => [k, v.name]));
+    const pv = document.createElement('fieldset');
+    pv.className = 'opt';
+    pv.innerHTML = '<button type="button" class="tape tape-black opt-preview">試し打ち</button>';
+    pv.querySelector('button').addEventListener('click', () => this.emit('preview'));
+    body.appendChild(pv);
+
     radio('quality', '画質', [['auto', '自動'], ...Object.entries(QUALITY_PRESETS).map(([k, v]) => [k, v.label])]);
+  }
+
+  // ---------- 流し込み ----------
+  _buildFeed() {
+    const s = this.settings;
+    const text = $('feedText');
+    text.addEventListener('input', () => this.emit('feedInput', text.value));
+    const range = $('feedSpeed');
+    range.value = s.get('feedSpeed');
+    const label = () => {
+      const cps = Number(range.value);
+      const name = cps <= 4 ? 'ゆっくり' : cps <= 11 ? 'タイピスト' : cps <= 19 ? '速い' : '機関銃';
+      $('feedSpeedLabel').textContent = `${name}・${cps} 字/秒（約 ${Math.round(cps * 12)} wpm）`;
+    };
+    range.addEventListener('input', () => { s.set('feedSpeed', Number(range.value)); label(); });
+    label();
+  }
+
+  get feedText() { return $('feedText').value; }
+  set feedText(v) { $('feedText').value = v; this.emit('feedInput', v); }
+
+  /** 貼り付けた文章の見積もり（打てる字・飛ばす字） */
+  setFeedInfo({ typable, skipped }, empty = false) {
+    const el = $('feedInfo');
+    $('feedStart').disabled = !typable;
+    if (empty) { el.textContent = '英数字と記号を打てます。日本語は活字がないため飛ばします。'; el.classList.remove('warn'); return; }
+    el.textContent = typable
+      ? `${typable} 字を打ちます${skipped ? `（活字のない ${skipped} 字は飛ばします）` : ''}`
+      : `打てる文字がありません${skipped ? `（活字のない ${skipped} 字）` : ''}`;
+    el.classList.toggle('warn', !typable);
+  }
+
+  setFeedState({ active, paused }) {
+    $('feedbar').hidden = !active;
+    document.body.classList.toggle('feeding', active);
+    $('feedStatus').textContent = paused ? '一時停止中' : '流し込み中';
+    $('feedToggle').textContent = paused ? '再開' : '一時停止';
+    $('feedbar').classList.toggle('paused', paused);
+  }
+
+  setFeedProgress({ done, total }) {
+    $('feedProgress').textContent = `${done} / ${total}`;
+    $('feedFill').style.width = `${total ? (done / total) * 100 : 0}%`;
   }
 
   // ---------- ギャラリー ----------

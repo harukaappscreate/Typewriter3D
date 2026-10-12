@@ -134,7 +134,8 @@ html, body {
 .toolbar .tape:nth-child(2) { --tilt: -1.2deg; }
 .toolbar .tape:nth-child(3) { --tilt: .6deg; }
 .toolbar .tape:nth-child(4) { --tilt: -.8deg; }
-.toolbar .tape:nth-child(5) { --tilt: 1.6deg; }
+.toolbar .tape:nth-child(5) { --tilt: -1.4deg; }
+.toolbar .tape:nth-child(6) { --tilt: 1.6deg; }
 
 /* ---------- 熱メーター ---------- */
 .heat {
@@ -202,6 +203,50 @@ body.typing .mobilebar [data-action="keyboard"] { display: none; }
 .swatch { width: 14px; height: 14px; display: inline-block; border: 1px solid rgba(0,0,0,.4); }
 .opt-note { font-size: 12px; color: #5a5466; margin: 4px 0 0; line-height: 1.5; }
 
+/* ---------- 流し込み ---------- */
+.feed-lead { margin: 0 0 10px; font-size: 13px; }
+.feed-lead kbd {
+  font: 700 11px/1 var(--ui); padding: 2px 4px 1px; border: 1px solid rgba(27,26,34,.45);
+  border-bottom-width: 2px; border-radius: 3px; background: rgba(255,255,255,.35);
+}
+.feed-text {
+  display: block; width: 100%; resize: vertical; min-height: 120px; max-height: 40vh;
+  font: 400 14px/1.55 "Courier Prime", ui-monospace, monospace; color: var(--ink);
+  padding: 9px 10px; border: 1.5px solid rgba(27,26,34,.55); border-radius: 0;
+  background: rgba(255,255,255,.45);
+}
+.feed-text:focus { outline: 2px dashed var(--ink-red); outline-offset: 2px; }
+.feed-info { margin: 6px 0 12px; font-size: 12px; line-height: 1.5; color: #3a3546; min-height: 1.5em; }
+.feed-info.warn { color: var(--ink-red); }
+.feed-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; }
+.feed-row .tape:nth-child(1) { --tilt: -.8deg; }
+.feed-row .tape:nth-child(2) { --tilt: .9deg; }
+.feed-speed-label { font-weight: 400; color: #5a5466; margin-left: 4px; }
+.feed-go { font-size: 16px; padding: 11px 18px 10px; --tilt: -1deg; }
+.opt-preview { --tilt: -.8deg; }
+
+.feedbar {
+  position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%) rotate(-.4deg);
+  z-index: 7; width: min(380px, calc(100vw - 32px));
+  padding: 10px 12px 12px;
+  color: var(--emboss);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0) 40%),
+    rgba(20,20,24,.9);
+  box-shadow: 0 10px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(201,161,91,.25);
+}
+.feedbar-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; margin-bottom: 7px; }
+.feedbar-head #feedStatus { color: var(--brass); font-weight: 700; letter-spacing: .06em; }
+.feedbar-count { font-variant-numeric: tabular-nums; color: #b9b3a3; }
+.feedbar-track { height: 6px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); }
+.feedbar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #8a6a35, var(--brass)); transition: width .15s linear; }
+.feedbar.paused .feedbar-fill { background: #6d6858; }
+.feedbar-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.feedbar-actions .tape { font-size: 13px; padding: 7px 11px 6px; }
+.feedbar-actions .tape:nth-child(1) { --tilt: .7deg; }
+.feedbar-actions .tape:nth-child(2) { --tilt: -1deg; }
+body.feeding .toast { bottom: calc(150px + var(--safe-b)); }
+
 /* ---------- ギャラリー ---------- */
 .gallery-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 16px; }
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
@@ -267,11 +312,20 @@ body.typing .mobilebar [data-action="keyboard"] { display: none; }
   .hud-brand { font-size: 11px; }
   .hud-stats { gap: 10px; font-size: 12px; }
   .heat { top: auto; bottom: calc(70px + var(--safe-b)); }
+  .feedbar { bottom: calc(74px + var(--safe-b)); padding: 8px 10px 10px; }
+  .feedbar-actions { margin-top: 8px; }
+  body.feeding .heat { bottom: calc(182px + var(--safe-b)); }
+  body.feeding .toast { bottom: calc(196px + var(--safe-b)); }
   .mobilebar { gap: 6px; padding: 0 8px; }
   .mobilebar .tape { font-size: 13px; padding: 11px 10px 10px; }
   .sheet { top: calc(96px + var(--safe-t)); max-height: calc(100% - 160px - var(--safe-t) - var(--safe-b)); right: 50%; transform: translateX(50%) rotate(-.4deg); animation-name: sheet-in-center2; }
   @keyframes sheet-in-center2 { from { transform: translate(50%, -14px) rotate(-2deg); opacity: 0; } }
   .sheet-wide { left: 50%; right: auto; transform: translateX(-50%) rotate(.3deg); animation-name: sheet-in-center; }
+}
+@media (pointer: coarse) {
+  .feed-kbd { display: none; }
+  .feedbar { bottom: calc(74px + var(--safe-b)); }
+  body.feeding .toast { bottom: calc(196px + var(--safe-b)); }
 }
 @media (pointer: fine) and (min-width: 641px) {
   .mobilebar [data-action="keyboard"] { display: none; }

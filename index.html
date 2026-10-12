@@ -53,7 +53,7 @@
         <p class="intro-sub">夜の書斎の、一台のタイプライター。</p>
         <p class="intro-status" id="introStatus">準備しています…</p>
         <button class="tape tape-blue intro-go" id="introGo" disabled>カバーを外す</button>
-        <p class="intro-hint">キーボードで打つか、3Dのキーをタップ。<br />Enter で改行、紙がいっぱいになると次の紙へ。</p>
+        <p class="intro-hint">キーボードで打つか、3Dのキーをタップ。<br />Enter で改行、紙がいっぱいになると次の紙へ。<br />⌘V / Ctrl+V で、貼り付けた文章を機械が打ちます。</p>
       </div>
     </section>
 
@@ -71,6 +71,7 @@
       <button class="tape tape-black" data-action="sound" aria-pressed="true">音</button>
       <button class="tape tape-black" data-action="camera">視点</button>
       <button class="tape tape-black" data-action="gallery">原稿 <b id="pageCount">0</b></button>
+      <button class="tape tape-black" data-action="feed">流し込み</button>
       <button class="tape tape-black" data-action="settings">設定</button>
       <button class="tape tape-red" data-action="henteko" aria-pressed="false">へんてこ</button>
     </nav>
@@ -95,6 +96,42 @@
       </div>
       <div class="sheet-body" id="settingsBody"></div>
     </aside>
+
+    <!-- 流し込み（貼り付けた文章を機械が打つ） -->
+    <aside class="sheet" id="feed" hidden aria-label="流し込み">
+      <div class="sheet-head">
+        <h2>流し込み</h2>
+        <button class="sheet-close" data-action="close" aria-label="閉じる">×</button>
+      </div>
+      <div class="sheet-body">
+        <p class="opt-note feed-lead">貼り付けた文章を、機械が1字ずつ打ちます。<span class="feed-kbd">紙の外で <kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd> を押しても、すぐに始まります。</span></p>
+        <textarea id="feedText" class="feed-text" rows="7" placeholder="ここに文章を貼り付け" spellcheck="false"
+          aria-label="流し込む文章"></textarea>
+        <p class="feed-info" id="feedInfo">英数字と記号を打てます。日本語は活字がないため飛ばします。</p>
+        <div class="feed-row">
+          <button class="tape tape-black" data-action="feed-clipboard">クリップボードから読む</button>
+          <button class="tape tape-black" data-action="feed-clear">空にする</button>
+        </div>
+        <fieldset class="opt">
+          <legend>速さ <span class="feed-speed-label" id="feedSpeedLabel"></span></legend>
+          <input type="range" id="feedSpeed" min="2" max="26" step="1" aria-label="流し込みの速さ" />
+        </fieldset>
+        <button class="tape tape-blue feed-go" data-action="feed-start" id="feedStart" disabled>流し込む</button>
+      </div>
+    </aside>
+
+    <!-- 流し込み中の操作 -->
+    <div class="feedbar" id="feedbar" hidden role="group" aria-label="流し込みの操作">
+      <div class="feedbar-head">
+        <span id="feedStatus">流し込み中</span>
+        <span class="feedbar-count" id="feedProgress">0 / 0</span>
+      </div>
+      <div class="feedbar-track"><div class="feedbar-fill" id="feedFill"></div></div>
+      <div class="feedbar-actions">
+        <button class="tape tape-black" data-action="feed-toggle" id="feedToggle">一時停止</button>
+        <button class="tape tape-red" data-action="feed-stop">やめる</button>
+      </div>
+    </div>
 
     <!-- 原稿ギャラリー -->
     <aside class="sheet sheet-wide" id="gallery" hidden aria-label="原稿">
