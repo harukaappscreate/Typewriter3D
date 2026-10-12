@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#08090c" />
+  <title>Typewriter Atelier — 3D Mechanical Typewriter</title>
+  <meta name="description" content="夜の書斎に置かれた1台のタイプライターをThree.js (WebGL) で精巧に再現。活字棒の跳ね上がり、インクの滲み、リアルな打鍵音と機構を楽しむインタラクティブ3Dタイピング体験。" />
+  <meta name="author" content="haruka_apps" />
+
+  <!-- Canonical & OGP -->
+  <link rel="canonical" href="https://harukaappscreate.github.io/Typewriter3D/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Typewriter Atelier" />
+  <meta property="og:title" content="Typewriter Atelier — 3D Mechanical Typewriter" />
+  <meta property="og:description" content="夜の書斎に置かれた1台のタイプライターをThree.jsで再現。活字棒の跳ね上がり、インクの滲み、Web Audio合成音を楽しむ3Dタイピング体験。" />
+  <meta property="og:url" content="https://harukaappscreate.github.io/Typewriter3D/" />
+  <meta property="og:image" content="https://harukaappscreate.github.io/Typewriter3D/assets/ogp.jpg" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Typewriter Atelier — 3D Mechanical Typewriter" />
+  <meta name="twitter:description" content="夜の書斎に置かれた1台のタイプライターをThree.jsで再現。Web Audio音響とリアルな機構の3Dタイピング体験。" />
+  <meta name="twitter:image" content="https://harukaappscreate.github.io/Typewriter3D/assets/ogp.jpg" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!--
+    Three.js r186.1 は vendor/ に同梱しています（オフラインでも動作）。
+    CDN を使う場合は下の importmap を次に差し替えてください：
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene" aria-label="3Dタイプライター"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <!-- 起動画面 -->
+    <section id="intro" class="intro" aria-live="polite">
+      <div class="intro-card">
+        <p class="intro-brand">Typewriter<br />Atelier</p>
+        <p class="intro-sub">夜の書斎の、一台のタイプライター。</p>
+        <p class="intro-status" id="introStatus">準備しています…</p>
+        <button class="tape tape-blue intro-go" id="introGo" disabled>カバーを外す</button>
+        <p class="intro-hint">キーボードで打つか、3Dのキーをタップ。<br />Enter で改行、紙がいっぱいになると次の紙へ。</p>
+      </div>
+    </section>
+
+    <!-- 常駐UI -->
+    <header class="hud" id="hud" hidden>
+      <div class="hud-brand tape tape-black" aria-hidden="true">ATELIER No.5</div>
+      <div class="hud-stats" id="stats">
+        <span id="statWpm">0 wpm</span>
+        <span id="statChars">0 字</span>
+        <span id="statPage">1 枚目</span>
+      </div>
+    </header>
+
+    <nav class="toolbar" id="toolbar" hidden>
+      <button class="tape tape-black" data-action="sound" aria-pressed="true">音</button>
+      <button class="tape tape-black" data-action="camera">視点</button>
+      <button class="tape tape-black" data-action="gallery">原稿 <b id="pageCount">0</b></button>
+      <button class="tape tape-black" data-action="settings">設定</button>
+      <button class="tape tape-red" data-action="henteko" aria-pressed="false">へんてこ</button>
+    </nav>
+
+    <div class="heat" id="heat" hidden aria-hidden="true">
+      <div class="heat-label">機械の熱</div>
+      <div class="heat-bar"><div class="heat-fill" id="heatFill"></div></div>
+    </div>
+
+    <div class="mobilebar" id="mobilebar" hidden>
+      <button class="tape tape-blue" data-action="keyboard">キーボード</button>
+      <button class="tape tape-black" data-action="ribbon">リボン <b id="ribbonLabel">黒</b></button>
+      <button class="tape tape-black" data-action="return">改行</button>
+      <button class="tape tape-black" data-action="eject">紙を替える</button>
+    </div>
+
+    <!-- 設定（オニオンスキン紙） -->
+    <aside class="sheet" id="settings" hidden aria-label="設定">
+      <div class="sheet-head">
+        <h2>設定</h2>
+        <button class="sheet-close" data-action="close" aria-label="閉じる">×</button>
+      </div>
+      <div class="sheet-body" id="settingsBody"></div>
+    </aside>
+
+    <!-- 原稿ギャラリー -->
+    <aside class="sheet sheet-wide" id="gallery" hidden aria-label="原稿">
+      <div class="sheet-head">
+        <h2>打ち終えた原稿</h2>
+        <button class="sheet-close" data-action="close" aria-label="閉じる">×</button>
+      </div>
+      <div class="sheet-body">
+        <div class="gallery-actions">
+          <button class="tape tape-blue" data-action="save-current">いま打っている紙を保存</button>
+          <button class="tape tape-black" data-action="copy-text">文字をコピー</button>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+        <p class="gallery-empty" id="galleryEmpty">まだ原稿はありません。紙を最後まで打つか「紙を替える」で、ここに積まれます。</p>
+      </div>
+    </aside>
+
+    <div class="viewer" id="viewer" hidden>
+      <img id="viewerImg" alt="原稿" />
+      <div class="viewer-actions">
+        <button class="tape tape-blue" id="viewerSave">PNGで保存</button>
+        <button class="tape tape-black" id="viewerClose">閉じる</button>
+      </div>
+    </div>
+
+    <div class="jam" id="jam" hidden>
+      <p class="jam-title">JAM!</p>
+      <p class="jam-sub">活字棒が絡まった。どれかのキーを連打してほどく</p>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- スマホ用の隠し入力欄 -->
+    <textarea id="ime" class="ime" autocomplete="off" autocorrect="off" autocapitalize="off"
+      spellcheck="false" enterkeyhint="enter" aria-label="タイプ入力"></textarea>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
