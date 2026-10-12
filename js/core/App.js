@@ -4,6 +4,7 @@ import { resolveQuality, FpsGovernor } from './Quality.js';
 import { Stage } from './Stage.js';
 import { Tweens, ease, clamp } from './anim.js';
 import { Input } from './Input.js';
+import { Feeder } from './Feeder.js';
 import { AudioEngine } from '../audio/AudioEngine.js';
 import { Environment } from '../fx/Environment.js';
 import { CameraRig } from '../fx/CameraRig.js';
@@ -31,6 +32,9 @@ export class App {
     this.audio.enabled = this.settings.get('sound');
     this.audio.volume = this.settings.get('volume');
     this.audio.ambienceOn = this.settings.get('ambience');
+    this.audio.setProfile(this.settings.get('soundProfile'));
+    this.audio.setBellType(this.settings.get('bellType'));
+    this.audio.setRoom(this.settings.get('room'));
 
     this.env = new Environment(this.stage.scene, this.quality);
     this.typewriter = new Typewriter({
@@ -44,6 +48,7 @@ export class App {
       camera: this.cameraRig, env: this.env, post: this.stage.post, ui: this.ui,
     });
     this.henteko.setEnabled(this.settings.get('henteko'));
+    this.feeder = new Feeder(this.typewriter, this.settings);
     this.input = new Input({ canvas, camera: this.stage.camera, ime: document.getElementById('ime') });
     const tw = this.typewriter;
     this.input.setPickables([
@@ -96,20 +101,27 @@ export class App {
   }
 
   _wire() {
-    const { input, typewriter: tw, henteko, ui, settings, audio, cameraRig } = this;
+    const { input, typewriter: tw, henteko, ui, settings, audio, cameraRig, feeder } = this;
     const jam = () => tw.jammed && henteko.enabled;
+    // 流し込み中に自分で打ったら、流し込みは一時停止
+    const own = () => {
+      if (feeder.active && !feeder.paused && !jam()) { feeder.pause(); ui.toast('流し込みを一時停止しました', 1400); }
+    };
 
     input.on('any', () => { if (!this.started) this.start(); });
-    input.on('char', (ch) => (jam() ? henteko.mashKey() : tw.typeChar(ch)));
-    input.on('return', () => (jam() ? henteko.mashKey() : tw.carriageReturn()));
-    input.on('backspace', () => (jam() ? henteko.mashKey() : tw.backspace()));
-    input.on('tab', () => (jam() ? henteko.mashKey() : tw.tab()));
+    input.on('char', (ch) => (jam() ? henteko.mashKey() : (own(), tw.typeChar(ch))));
+    input.on('return', () => (jam() ? henteko.mashKey() : (own(), tw.carriageReturn())));
+    input.on('backspace', () => (jam() ? henteko.mashKey() : (own(), tw.backspace())));
+    input.on('tab', () => (jam() ? henteko.mashKey() : (own(), tw.tab())));
+    input.on('paste', (text) => this._startFeed(text));
+    input.on('pasteDenied', () => ui.toast('クリップボードを読めませんでした。「流し込み」の欄に貼り付けてください'));
     input.on('shift', (on) => tw.setShiftHeld(on));
     input.on('caps', (on) => tw.setCapsLock(on));
     input.on('escape', () => ui.closePanels());
     input.on('pick', (hit) => {
       if (jam()) { henteko.mashKey(); return; }
       const o = hit.object;
+      if (!tw.body.bell.children.includes(o)) own();
       if ((o === tw.keyboard.caps || o === tw.keyboard.rings) && hit.instanceId != null) {
         tw.pressKey(tw.layout.keys[hit.instanceId]);
       } else if (o === tw.keyboard.spaceBarMesh) tw.typeChar(' ');
@@ -136,11 +148,27 @@ export class App {
         case 'eject': tw.ejectPage(); break;
         case 'save-current': this._saveCurrent(); break;
         case 'copy-text': this._copyText(); break;
+        case 'feed-start': this._startFeed(ui.feedText); break;
+        case 'feed-clipboard': this._readClipboard(); break;
+        case 'feed-clear': ui.feedText = ''; break;
+        case 'feed-toggle': feeder.toggle(); break;
+        case 'feed-stop': feeder.stop(); ui.toast('流し込みをやめました', 1400); break;
         default: break;
       }
     });
 
+    // 流し込み
+    ui.on('feedInput', (text) => ui.setFeedInfo(feeder.analyze(text), !text.trim()));
+    ui.setFeedInfo({ typable: 0, skipped: 0 }, true);
+    feeder.on('state', (st) => ui.setFeedState(st));
+    feeder.on('progress', (p) => ui.setFeedProgress(p));
+    feeder.on('done', () => ui.toast('流し込みが終わりました', 1800));
+    ui.on('preview', () => { audio.unlock(); audio.preview(); });
+
     settings.on('change', ({ key, value }) => {
+      if (key === 'soundProfile') { audio.setProfile(value); audio.preview(); }
+      if (key === 'bellType') { audio.setBellType(value); audio.bell(); }
+      if (key === 'room') { audio.setRoom(value); audio.preview(); }
       if (key === 'sound') audio.setEnabled(value);
       if (key === 'volume') audio.setVolume(value);
       if (key === 'ambience') audio.setAmbience(value);
@@ -166,6 +194,30 @@ export class App {
       }, 'image/png');
       ui.toast(`${index} 枚目を原稿の山に積みました`, 1800);
     });
+  }
+
+  /** 流し込みを始める（⌘V・パネルの「流し込む」） */
+  _startFeed(text) {
+    const { ui, feeder } = this;
+    if (!this.started || !text) return;
+    const r = feeder.start(text);
+    if (!r.typable) {
+      ui.toast(r.skipped ? '打てる文字がありません（日本語は活字がないため打てません）' : '流し込む文章がありません');
+      return;
+    }
+    if (!document.getElementById('feed').hidden) ui.closePanels();
+    this.audio.unlock();
+    ui.toast(`${r.typable} 字を流し込みます${r.skipped ? `（活字のない ${r.skipped} 字は飛ばします）` : ''}`, 2600);
+  }
+
+  async _readClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      this.ui.feedText = text;
+      if (!text) this.ui.toast('クリップボードは空でした');
+    } catch {
+      this.ui.toast('読み取れませんでした。欄に ⌘V / Ctrl+V で貼り付けてください');
+    }
   }
 
   _saveCurrent() {
@@ -215,6 +267,7 @@ export class App {
 
   _update(dt) {
     this.tweens.update(dt);
+    this.feeder.update(dt);
     this.typewriter.update(dt);
     this.henteko.update(dt);
     this.env.update(dt);

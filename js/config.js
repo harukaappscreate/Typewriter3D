@@ -78,6 +78,10 @@ export const DEFAULT_SETTINGS = {
   volume: 0.8,
   ambience: true,
   sound: true,
+  soundProfile: 'classic', // 打鍵音の音色（js/audio/soundProfiles.js）
+  bellType: 'brass',
+  room: 'study',
+  feedSpeed: 9,            // 流し込みの速さ（字/秒）
   quality: 'auto',
   henteko: false,
 };

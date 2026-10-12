@@ -24,6 +24,7 @@ export class Input extends Emitter {
     window.addEventListener('keydown', (e) => this._onKeyDown(e));
     window.addEventListener('keyup', (e) => this._onKeyUp(e));
     window.addEventListener('blur', () => this.emit('shift', false));
+    window.addEventListener('paste', (e) => this._onPaste(e));
 
     ime.addEventListener('compositionstart', () => { this._composing = true; });
     ime.addEventListener('compositionend', () => { this._composing = false; this._readIme(); });
@@ -50,6 +51,7 @@ export class Input extends Emitter {
     if (this._isFormField(e.target)) return;
     if (e.key === 'Shift') { this.emit('shift', true); return; }
     if (e.key === 'CapsLock') { this.emit('caps', e.getModifierState('CapsLock')); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'v') { this._pasteFallback(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return; // ブラウザのショートカットはそのまま
     if (!this.enabled) {
       if (e.key.length === 1 || e.key === 'Enter') this.emit('any', e);
@@ -67,6 +69,30 @@ export class Input extends Emitter {
       e.preventDefault();
       this.emit('char', e.key);
     }
+  }
+
+  // ---------- 貼り付け（流し込み） ----------
+  // 入力欄の外での ⌘V / Ctrl+V。隠し入力欄（スマホ）への貼り付けもここで受ける
+  _onPaste(e) {
+    if (this._isFormField(e.target) || !this.enabled) return;
+    this._pasteSeen = true;
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text) return;
+    e.preventDefault();
+    if (e.target === this.ime) this._resetIme();
+    this.emit('paste', text);
+  }
+
+  // Safari などは入力欄の外で paste イベントを出さないため、届かなければ読みに行く
+  _pasteFallback() {
+    if (!this.enabled) return;
+    this._pasteSeen = false;
+    setTimeout(() => {
+      if (this._pasteSeen || !navigator.clipboard?.readText) return;
+      navigator.clipboard.readText()
+        .then((text) => { if (text) this.emit('paste', text); })
+        .catch(() => this.emit('pasteDenied'));
+    }, 120);
   }
 
   _onKeyUp(e) {
